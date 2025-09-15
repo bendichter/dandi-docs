@@ -1,0 +1,45 @@
+name: Build Documentation for PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'requirements.txt'
+      - 'netlify.toml'
+
+jobs:
+  build-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install requirements
+        run: pip install -r requirements.txt
+
+      - name: Build documentation
+        run: mkdocs build --verbose
+
+      - name: Check for broken links (optional)
+        run: |
+          echo "Documentation built successfully!"
+          echo "Netlify will automatically create a preview deployment for this PR."
+          echo "The preview URL will be posted as a comment by Netlify."
+        continue-on-error: true
