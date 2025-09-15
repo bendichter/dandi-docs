@@ -1,36 +1,22 @@
-name: PR Documentation Preview
+name: Build Documentation for PR Preview
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
       - 'requirements.txt'
-      - '.github/workflows/pr-preview.yaml'
-
-permissions:
-  contents: write
-  pull-requests: write
-  pages: write
-  id-token: write
+      - 'netlify.toml'
 
 jobs:
-  build-preview:
-    if: github.event.action != 'closed'
+  build-check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: true
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Git remotes
-        run: |
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git remote -v
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -51,125 +37,9 @@ jobs:
       - name: Build documentation
         run: mkdocs build --verbose
 
-      - name: Setup preview directory
+      - name: Check for broken links (optional)
         run: |
-          mkdir -p pr-previews
-          cp -r site/* pr-previews/
-          echo "<html><head><meta http-equiv='refresh' content='0; url=pr-${{ github.event.number }}/'></head><body>Redirecting to PR preview...</body></html>" > pr-previews/index.html
-
-      - name: Deploy to GitHub Pages (PR Preview)
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ./site
-          destination_dir: pr-${{ github.event.number }}
-          keep_files: true
-          enable_jekyll: false
-
-      - name: Comment PR with preview link
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.payload.pull_request.number;
-            const repoName = context.repo.repo;
-            const repoOwner = context.repo.owner;
-            const previewUrl = `https://${repoOwner}.github.io/${repoName}/pr-${prNumber}/`;
-            
-            // Check if we already commented
-            const comments = await github.rest.issues.listComments({
-              owner: repoOwner,
-              repo: repoName,
-              issue_number: prNumber
-            });
-            
-            const botComment = comments.data.find(comment => 
-              comment.user.login === 'github-actions[bot]' && 
-              comment.body.includes('📖 Documentation Preview')
-            );
-            
-            const commentBody = `## 📖 Documentation Preview
-            
-            The documentation for this PR has been built and is available for preview:
-            
-            🔗 **[View PR Preview](${previewUrl})**
-            
-            This preview will be updated automatically when you push changes to this PR.
-            
-            ---
-            *Preview generated from commit: ${context.sha.substring(0, 7)}*`;
-            
-            if (botComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
-                owner: repoOwner,
-                repo: repoName,
-                comment_id: botComment.id,
-                body: commentBody
-              });
-            } else {
-              // Create new comment
-              await github.rest.issues.createComment({
-                owner: repoOwner,
-                repo: repoName,
-                issue_number: prNumber,
-                body: commentBody
-              });
-            }
-
-  cleanup-preview:
-    if: github.event.action == 'closed'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Git remotes for cleanup
-        run: |
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git remote -v
-
-      - name: Remove PR preview directory
-        run: |
-          if [ -d "pr-${{ github.event.number }}" ]; then
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            rm -rf pr-${{ github.event.number }}
-            git add .
-            git commit -m "Clean up PR #${{ github.event.number }} preview" || exit 0
-            git push
-          fi
-
-      - name: Comment PR cleanup
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.payload.pull_request.number;
-            const repoName = context.repo.repo;
-            const repoOwner = context.repo.owner;
-            
-            // Find and update the bot comment
-            const comments = await github.rest.issues.listComments({
-              owner: repoOwner,
-              repo: repoName,
-              issue_number: prNumber
-            });
-            
-            const botComment = comments.data.find(comment => 
-              comment.user.login === 'github-actions[bot]' && 
-              comment.body.includes('📖 Documentation Preview')
-            );
-            
-            if (botComment) {
-              const updatedBody = botComment.body + '\n\n**✅ Preview cleaned up** - PR has been closed/merged.';
-              await github.rest.issues.updateComment({
-                owner: repoOwner,
-                repo: repoName,
-                comment_id: botComment.id,
-                body: updatedBody
-              });
-            }
+          echo "Documentation built successfully!"
+          echo "Netlify will automatically create a preview deployment for this PR."
+          echo "The preview URL will be posted as a comment by Netlify."
+        continue-on-error: true

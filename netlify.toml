@@ -1,0 +1,29 @@
+[build]
+  publish = "site"
+  command = "pip install -r requirements.txt && mkdocs build"
+
+[build.environment]
+  PYTHON_VERSION = "3.11"
+
+# Deploy preview configuration for pull requests
+[context.deploy-preview]
+  command = "pip install -r requirements.txt && mkdocs build"
+
+# Branch deploy configuration
+[context.branch-deploy]
+  command = "pip install -r requirements.txt && mkdocs build"
+
+# Headers for security and performance
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-XSS-Protection = "1; mode=block"
+
+# Cache static assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
